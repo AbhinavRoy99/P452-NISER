@@ -3,6 +3,8 @@ import numpy as np
 import scipy
 from scipy import sparse
 import lib_ar as toolsar
+import scipy.stats as stats
+
 
 
 #Fixed Point Method
@@ -668,77 +670,130 @@ def conjugate_gradient(A, b, x0, tol=1e-6, max_iter=100):
 
 
 def calculate_norm(r):
-    """
-    Calculates the Euclidean norm (L2 norm) of a vector r and returns the Euclidean norm of the vector r.
-    """
-    norm_squared = sum(element ** 2 for element in r)
-    norm = norm_squared ** 0.5
-    return norm 
+	"""
+	Calculates the Euclidean norm (L2 norm) of a vector r and returns the Euclidean norm of the vector r.
+	"""
+	norm_squared = sum(element ** 2 for element in r)
+	norm = norm_squared ** 0.5
+	return norm 
 	
 
 def matrix_A_ij(x):
-    """
-    Calculate the matrix-vector product Ax for the given vector x.
-    Returns The result of the matrix-vector product Ax.
-    """
-    m = 0.2
-    N = len(x)
-    delta = 1.0 / N
-    result = np.zeros_like(x)
-    
-    for i in range(N):
-        result[i] += (delta + m) * x[i]
-        result[i] -= 2 * delta * x[i]
-        result[i] += delta * x[(i + 1) % N]  # Periodic boundary condition
-        result[i] += delta * x[(i - 1) % N]  # Periodic boundary condition
-        result[i] += m ** 2 * delta * x[i] 
-    #print(result)
-    return result
+	"""
+	Calculate the matrix-vector product Ax for the given vector x.
+	Returns The result of the matrix-vector product Ax.
+	"""
+	m = 0.2
+	N = len(x)
+	delta = 1.0 / N
+	result = np.zeros_like(x)
+	
+	for i in range(N):
+		result[i] += (delta + m) * x[i]
+		result[i] -= 2 * delta * x[i]
+		result[i] += delta * x[(i + 1) % N]  # Periodic boundary condition
+		result[i] += delta * x[(i - 1) % N]  # Periodic boundary condition
+		result[i] += m ** 2 * delta * x[i] 
+	#print(result)
+	return result
 
 def conjugate_fly(matrix_A_ij, b, x0, tol=10**(-6), max_iter=100):
-    """
-    Conjugate Gradient method for solving linear systems Ax = b.
-    Returns: The approximate solution vector x and the List of residue norms at each iteration step.
-    """
-    it = 0
-    x = x0.copy()  # Initial guess
-    r = b - matrix_A_ij(x)  # Initial residual
-    p = r.copy()  # Initial search direction
-    residue_norms = [np.linalg.norm(r)]  # List to store residue norms
+	"""
+	Conjugate Gradient method for solving linear systems Ax = b.
+	Returns: The approximate solution vector x and the List of residue norms at each iteration step.
+	"""
+	it = 0
+	x = x0.copy()  # Initial guess
+	r = b - matrix_A_ij(x)  # Initial residual
+	p = r.copy()  # Initial search direction
+	residue_norms = [np.linalg.norm(r)]  # List to store residue norms
 
-    for k in range(max_iter):
-        Ap = matrix_A_ij(p)
-        alpha = np.dot(r, r) / np.dot(p, Ap)
-        x += alpha * p
-        r -= alpha * Ap
-        
-        beta = np.dot(r, r) / np.dot(r - alpha * Ap, r - alpha * Ap)
-        p = r - alpha * Ap + beta * p
+	for k in range(max_iter):
+		Ap = matrix_A_ij(p)
+		alpha = np.dot(r, r) / np.dot(p, Ap)
+		x += alpha * p
+		r -= alpha * Ap
+		
+		beta = np.dot(r, r) / np.dot(r - alpha * Ap, r - alpha * Ap)
+		p = r - alpha * Ap + beta * p
 
-        residue_norm = np.linalg.norm(r)
-        residue_norms.append(residue_norm)
-        it= it+1
-        if residue_norm < tol:
-            break
+		residue_norm = np.linalg.norm(r)
+		residue_norms.append(residue_norm)
+		it= it+1
+		if residue_norm < tol:
+			break
 
-    return x, residue_norms, it
+	return x, residue_norms, it
 
 
 def conjugate_inv(matrix_A_ij, b, x0, tol=10**(-6), max_iter=100):
-    N = len(b)
-    inverse_columns = []
-    
-    for i in range(N):
-        # Create the right-hand side vector for solving Ax = e_i
-        ei = np.zeros(N)
-        ei[i] = 1
-        
-        # Solve the equation Ax = e_i using Conjugate Gradient method
-        x, _, _ = conjugate_fly(matrix_A_ij, ei, x0, tol, max_iter)
-        
-        # Append the solution (column of the inverse matrix) to the list
-        inverse_columns.append(x)
-    
-    # Stack the columns of the inverse matrix horizontally to form the complete inverse matrix
-    A_inv = np.column_stack(np.round(inverse_columns,4))
-    return A_inv
+	N = len(b)
+	inverse_columns = []
+	
+	for i in range(N):
+		# Create the right-hand side vector for solving Ax = e_i
+		ei = np.zeros(N)
+		ei[i] = 1
+		
+		# Solve the equation Ax = e_i using Conjugate Gradient method
+		x, _, _ = conjugate_fly(matrix_A_ij, ei, x0, tol, max_iter)
+		
+		# Append the solution (column of the inverse matrix) to the list
+		inverse_columns.append(x)
+	
+	# Stack the columns of the inverse matrix horizontally to form the complete inverse matrix
+	A_inv = np.column_stack(np.round(inverse_columns,4))
+	return A_inv
+
+
+def power_method(A, num_simulations: int):
+	n = A.shape[0]
+	
+	# Step 1: Initialize a random vector
+	v = np.random.rand(n)
+	
+	# Step 2: Power method iterations
+	for _ in range(num_simulations):
+		# Multiply v by the matrix
+		Av = np.dot(A, v)
+		
+		# Normalize Av
+		v = Av / np.linalg.norm(Av)
+		
+	# Step 3: Calculate the eigenvalue
+	eigenvalue = np.dot(v, np.dot(A, v)) / np.dot(v, v)
+	
+	return eigenvalue
+
+
+def gram_schmidt(A):
+	Q = np.zeros_like(A)
+	R = np.zeros((A.shape[1], A.shape[1]))
+
+	for k in range(A.shape[1]):
+		R[k, k] = np.linalg.norm(A[:, k])
+		Q[:, k] = A[:, k] / R[k, k]
+		for j in range(k + 1, A.shape[1]):
+			R[k, j] = np.dot(Q[:, k], A[:, j])
+			A[:, j] = A[:, j] - R[k, j] * Q[:, k]
+	return Q, R
+
+def qr_factorization(A, num_simulations: int):
+	for _ in range(num_simulations):
+		Q, R = gram_schmidt(A)
+		A = R @ Q
+	return np.diag(A)
+
+# Perform F-test
+def F_test(A, B, var_A, var_B):
+	F = var_A / var_B
+	df1 = len(A) - 1
+	df2 = len(B) - 1
+	p_value_F = 1 - stats.f.cdf(F, df1, df2)
+	return F, p_value_F
+
+# Perform t-test
+def t_test(mean_A, mean_B, std_A, std_B, A, B):
+	t = (mean_A - mean_B) / np.sqrt(std_A**2/len(A) + std_B**2/len(B))
+	p_value_t = 2 * (1 - stats.t.cdf(np.abs(t), len(A) + len(B) - 2))
+	return t, p_value_t
